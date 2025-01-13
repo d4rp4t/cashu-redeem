@@ -15,11 +15,14 @@ import {Checkbox} from "@/components/ui/checkbox";
 import {Label} from "@/components/ui/label";
 import {CashChangeDisplay} from "@/components/TotalChange";
 import Image from "next/image"
+import { useSearchParams } from 'next/navigation'
 
 const Button = dynamic(
     () => import('@getalby/bitcoin-connect-react').then((mod) => mod.Button),
     {ssr: false}
 );
+
+
 
 export default function CashuRedemption() {
     const [isLoading, setLoading] = useState<boolean>(false);
@@ -32,6 +35,12 @@ export default function CashuRedemption() {
 
     const tokenRef = useRef<HTMLInputElement>(null);
     const addressRef = useRef<HTMLInputElement>(null);
+
+    const searchParams = useSearchParams();
+    const autopayParam = searchParams.get('autopay')??""
+    const tokenParam = searchParams.get('token')??""
+    const lightningParam = searchParams.get('lightning')??searchParams.get('ln')??searchParams.get('to')??""
+
 
     const resetForm = useCallback(() => {
         if (tokenRef.current) {
@@ -92,6 +101,7 @@ export default function CashuRedemption() {
                 toast.loading("Requesting melt quote", {id: "redeem"})
                 const quote = await wallet.createMeltQuote(invoice)
                 setMeltQuote(quote)
+                toast.success("Ready to process redemption", {id: "redeem"})
             } else {
                 toast.loading("Requesting invoice", {id: "redeem"})
                 const invoice = await createInvoice(amount, provider)
@@ -153,6 +163,60 @@ export default function CashuRedemption() {
         }
     }, [meltQuote, token, provider, lightningAddress, handleError, resetForm])
 
+    useEffect(() => {
+        let isSubscribed = true
+
+        async function validateByParams() {
+            if (!lightningParam || !tokenParam) {
+                return
+            }
+
+            try {
+                if (addressRef.current && tokenRef.current) {
+                    addressRef.current.value = lightningParam
+                    tokenRef.current.value = tokenParam
+
+                    if (isSubscribed) {
+                        await validateInput()
+                    }
+                }
+            } catch (error) {
+                if (isSubscribed) {
+                    handleError(error)
+                }
+            }
+        }
+
+        validateByParams()
+
+        return () => {
+            isSubscribed = false
+        }
+    }, [handleError, lightningParam, tokenParam, validateInput]);
+
+    useEffect(() => {
+        let isSubscribed = true
+
+        async function handleAutoMelt() {
+            if (!!autopayParam && meltQuote && token) {
+                try {
+                    if (isSubscribed) {
+                        await meltToken()
+                    }
+                } catch (error) {
+                    if (isSubscribed) {
+                        handleError(error)
+                    }
+                }
+            }
+        }
+
+        handleAutoMelt()
+
+        return () => {
+            isSubscribed = false
+        }
+    }, [meltQuote, token, autopayParam, meltToken, handleError]);
 
     useEffect(() => {
         return () => {
