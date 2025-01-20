@@ -10,12 +10,13 @@ import MeltQuoteAcceptance from "@/components/MeltQuoteAcceptance"
 import {getSatPerUnit, getSatValue} from "@/utils/cashuUtils"
 import toast from "react-hot-toast"
 import {mergeChange, removeUsedProofs, storeMint, storeProofs} from "@/utils/changeUtils"
-import {createInvoice} from "@/utils/lightningUtils"
+import {createInvoice, fetchLNURLData} from "@/utils/lightningUtils"
 import {Checkbox} from "@/components/ui/checkbox";
 import {Label} from "@/components/ui/label";
 import {CashChangeDisplay} from "@/components/TotalChange";
 import Image from "next/image"
-import { useSearchParams } from 'next/navigation'
+import {useSearchParams} from 'next/navigation'
+import {LNURLResponse} from "@/types";
 
 const Button = dynamic(
     () => import('@getalby/bitcoin-connect-react').then((mod) => mod.Button),
@@ -23,31 +24,29 @@ const Button = dynamic(
 );
 
 
-
 export default function CashuRedemption() {
     const [isLoading, setLoading] = useState<boolean>(false);
     const [meltQuote, setMeltQuote] = useState<MeltQuoteResponse>();
     const [provider, setProvider] = useState<WebLNProvider>();
-    const [lightningAddress, setLightningAddress] = useState<LightningAddress>();
+    const [lightningInput, setLightningInput] = useState<LightningAddress | LNURLResponse>();
     const [token, setToken] = useState<Token>();
     const [includeChange, setIncludeChange] = useState<boolean>(false);
     const [showTotalChange, setShowTotalChange] = useState<boolean>(false);
 
     const tokenRef = useRef<HTMLInputElement>(null);
-    const addressRef = useRef<HTMLInputElement>(null);
+    const lightningInputRef = useRef<HTMLInputElement>(null);
 
     const searchParams = useSearchParams();
-    const autopayParam = searchParams.get('autopay')??""
-    const tokenParam = searchParams.get('token')??""
-    const lightningParam = searchParams.get('lightning')??searchParams.get('ln')??searchParams.get('to')??""
-
+    const autopayParam = searchParams.get('autopay') ?? ""
+    const tokenParam = searchParams.get('token') ?? ""
+    const lightningParam = searchParams.get('lightning') ?? searchParams.get('ln') ?? searchParams.get('to') ?? ""
 
     const resetForm = useCallback(() => {
         if (tokenRef.current) {
             tokenRef.current.value = ''
         }
-        if (addressRef.current) {
-            addressRef.current.value = ''
+        if (lightningInputRef.current) {
+            lightningInputRef.current.value = ''
         }
         setToken(undefined)
         setMeltQuote(undefined)
@@ -85,26 +84,11 @@ export default function CashuRedemption() {
 
             toast.loading("Calculating amount", {id: "redeem"})
             const amount = await getSatValue(wallet, decodedToken)
+            let invoice: string | undefined;
 
-            if (!provider) {
-                if (!addressRef?.current?.value) {
-                    throw new Error('Please connect a wallet or enter a lightning address')
-                }
-                const address = new LightningAddress(addressRef.current.value)
-                await address.fetch()
-                setLightningAddress(address)
+            if (provider) {
                 toast.loading("Requesting invoice", {id: "redeem"})
-                const invoice = await createInvoice(amount, address)
-                if (!invoice) {
-                    throw new Error(`Couldn't create invoice..`)
-                }
-                toast.loading("Requesting melt quote", {id: "redeem"})
-                const quote = await wallet.createMeltQuote(invoice)
-                setMeltQuote(quote)
-                toast.success("Ready to process redemption", {id: "redeem"})
-            } else {
-                toast.loading("Requesting invoice", {id: "redeem"})
-                const invoice = await createInvoice(amount, provider)
+                invoice = await createInvoice(amount, provider)
                 if (!invoice) {
                     throw new Error("Failed to create invoice")
                 }
@@ -112,10 +96,36 @@ export default function CashuRedemption() {
                 const quote = await wallet.createMeltQuote(invoice)
                 setMeltQuote(quote)
                 toast.success("Ready to process redemption", {id: "redeem"})
+                return;
             }
 
+            if (!lightningInputRef?.current?.value) {
+                throw new Error('Please connect a wallet or enter a lightning address')
+            }
+
+            if (lightningInputRef.current.value.toLowerCase().startsWith("lnurl1")) {
+                const lnurlData = await fetchLNURLData(lightningInputRef.current.value)
+                setLightningInput(lnurlData)
+                toast.loading("Requesting invoice", {id: "redeem"})
+                invoice = await createInvoice(amount, lnurlData)
+            } else {
+                const address = new LightningAddress(lightningInputRef.current.value)
+                await address.fetch()
+                setLightningInput(address)
+                toast.loading("Requesting invoice", {id: "redeem"})
+                invoice = await createInvoice(amount, address)
+            }
+            if (!invoice) {
+                throw new Error(`Couldn't create invoice..`)
+            }
+            toast.loading("Requesting melt quote", {id: "redeem"})
+            const quote = await wallet.createMeltQuote(invoice)
+            setMeltQuote(quote)
+            toast.success("Ready to process redemption", {id: "redeem"})
         } catch (error) {
             handleError(error)
+        } finally {
+            setLoading(false)
         }
     }, [includeChange, provider, handleError])
 
@@ -130,10 +140,10 @@ export default function CashuRedemption() {
 
             toast.loading("Processing redemption", {id: "redeem"})
             const rate = await getSatPerUnit(wallet)
-            if (!provider&&!lightningAddress) {
+            if (!provider && !lightningInput) {
                 throw new Error('Please connect a wallet or enter a lightning address')
             }
-            const secondInvoice = await createInvoice(amountToMelt * rate, provider || lightningAddress!)
+            const secondInvoice = await createInvoice(amountToMelt * rate, provider || lightningInput!)
 
             if (!secondInvoice) {
                 throw new Error("Failed to create final invoice")
@@ -161,7 +171,7 @@ export default function CashuRedemption() {
         } catch (error) {
             handleError(error)
         }
-    }, [meltQuote, token, provider, lightningAddress, handleError, resetForm])
+    }, [meltQuote, token, provider, lightningInput, handleError, resetForm])
 
     useEffect(() => {
         let isSubscribed = true
@@ -172,8 +182,8 @@ export default function CashuRedemption() {
             }
 
             try {
-                if (addressRef.current && tokenRef.current) {
-                    addressRef.current.value = lightningParam
+                if (lightningInputRef.current && tokenRef.current) {
+                    lightningInputRef.current.value = lightningParam
                     tokenRef.current.value = tokenParam
 
                     if (isSubscribed) {
@@ -232,7 +242,7 @@ export default function CashuRedemption() {
                 <Button
                     onConnected={async (p) => {
                         setProvider(p)
-                        setLightningAddress(undefined)
+                        setLightningInput(undefined)
                     }}
                     onDisconnected={async () => setProvider(undefined)}
                 />
@@ -271,10 +281,10 @@ export default function CashuRedemption() {
                                         className="flex flex-col"
                                     >
                                         <label className="text-sm font-medium text-gray-700 mb-1">
-                                            Lightning Address
+                                            Lightning Address or LNURL
                                         </label>
                                         <input
-                                            ref={addressRef}
+                                            ref={lightningInputRef}
                                             type="text"
                                             disabled={isLoading}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-violet-500 focus:border-violet-500 sm:text-sm disabled:opacity-50"
@@ -316,7 +326,10 @@ export default function CashuRedemption() {
                                     className="text-violet-600 hover:underline">cashu.space</a></p>
             </footer>
 
-            <button className={"px-4 py-2 text-md w-[200px] absolute bottom-5 right-5 font-medium text-white bg-violet-600 rounded-md hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-300 transition duration-150 ease-in-out transform hover:scale-105"} disabled={false} onClick={()=>setShowTotalChange(true)}>View Stored Change</button>
+            <button
+                className={"px-4 py-2 text-md w-[200px] absolute bottom-5 right-5 font-medium text-white bg-violet-600 rounded-md hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-300 transition duration-150 ease-in-out transform hover:scale-105"}
+                disabled={false} onClick={() => setShowTotalChange(true)}>View Stored Change
+            </button>
 
             <AnimatePresence>
                 {meltQuote && (
@@ -331,9 +344,9 @@ export default function CashuRedemption() {
                     />
                 )}
                 {showTotalChange && (
-                    <CashChangeDisplay onClose={()=> {
+                    <CashChangeDisplay onClose={() => {
                         setShowTotalChange(false)
-                    }} />
+                    }}/>
                 )}
             </AnimatePresence>
         </div>

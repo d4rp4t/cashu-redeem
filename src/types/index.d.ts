@@ -1,5 +1,13 @@
 import {MeltQuoteResponse} from "@cashu/cashu-ts";
 
+type LNURLResponse = {
+    callback: string;
+    maxSendable: number;
+    minSendable: number;
+    metadata: string;
+}
+
+
 type MeltQuoteAcceptanceProps = {
     meltQuote: MeltQuoteResponse,
     onAccept: () => void,
@@ -13,6 +21,7 @@ type ChangeItem = {
 }
 
 export {
+    LNURLResponse,
     MeltQuoteAcceptanceProps,
     ChangeItem,
 }

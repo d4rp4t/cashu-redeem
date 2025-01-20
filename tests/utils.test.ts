@@ -1,4 +1,4 @@
-import {CashuMint, CashuWallet, getDecodedToken, Proof, Token} from "@cashu/cashu-ts";
+import {CashuMint, CashuWallet, getDecodedToken, Proof} from "@cashu/cashu-ts";
 import {expect} from "chai";
 import {getSatPerUnit, getSatValue} from "@/utils/cashuUtils";
 import {fiat, Invoice, LightningAddress} from "@getalby/lightning-tools";
@@ -11,7 +11,7 @@ import {
     removeUsedProofs,
     storeMint, storeProofs
 } from "@/utils/changeUtils";
-import {createInvoice} from "@/utils/lightningUtils";
+import {createInvoice, fetchLNURLData} from "@/utils/lightningUtils";
 import chaiAsPromised from "chai-as-promised";
 import chai from "chai";
 
@@ -43,8 +43,8 @@ describe("cashuUtils", () => {
             const cashumint = new CashuMint(token.mint)
             const wallet = new CashuWallet(cashumint, {unit: token.unit})
             const rate = await getSatValue(wallet, token);
-            //estimated 5% - mint price can be different than used price api
-            expect(rate).to.approximately(estimatedValue, rate * 6 / 100);
+            //estimated 5% - mint price can be different from used price api
+            expect(rate).to.approximately(estimatedValue, rate * 5 / 100);
         })
     })
 })
@@ -79,6 +79,7 @@ describe("changeUtils", () => {
 
         it("should return an empty array if localStorage has no mints", () => {
             const result = getMints();
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             expect(result).to.be.an("array").that.is.empty;
         });
 
@@ -97,6 +98,7 @@ describe("changeUtils", () => {
         })
         it("should return an empty array if localStorage has no proofs", () => {
             const result = getProofs();
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             expect(result).to.be.an("array").that.is.empty;
         })
 
@@ -275,6 +277,7 @@ describe("changeUtils", () => {
         it("should return empty array when no mints in localStorage", async () => {
             localStorage.clear();
             const result = await getFullChange();
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             expect(result).to.be.an('array').that.is.empty;
         });
 
@@ -341,7 +344,7 @@ describe("changeUtils", () => {
 
 })
 
-describe("lightningAddress", () => {
+describe("lightningUtils", () => {
     describe("createInvoice", () => {
         it("Should throw error if source is missing", async () => {
             await expect(createInvoice(10, undefined!)).to.be.rejectedWith(Error)
@@ -353,9 +356,33 @@ describe("lightningAddress", () => {
         it("Should create valid invoice if amount is valid and source is Lightning Address", async () => {
             const address = new LightningAddress("d4rp4t@lifpay.me")
             const invoice = await createInvoice(10, address)
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
             expect(invoice).not.to.be.undefined;
-            const {satoshi}= new Invoice({pr:invoice})
+            const {satoshi}= new Invoice({pr:invoice!})
             expect(satoshi).to.deep.equal(10)
+        }).timeout(10000)
+        it("Should throw error if address is invalid", async () => {
+            await expect(createInvoice(10, new LightningAddress("d4rp4t@lifpay.mesdasdasdad"))).to.be.rejectedWith(Error)
         })
+        it("should throw error if LNURL is invalid", async () => {
+            await expect(fetchLNURLData("LNURL1fcgvhbjnkml,;")).to.be.rejectedWith(Error)
+            await expect(fetchLNURLData("definetlynotlnurl")).to.be.rejectedWith(Error)
+        }).timeout(10000)
+        it("Should throw error if LNURL is valid but amount is invalid", async () => {
+            it("Should throw error if amount is invalid", async () => {
+                const lnurl = "LNURL1DP68GURN8GHJ7MRFVECXZ7FWD4JJ7TNHV4KXCTTTDEHHWM30D3H82UNVWQHKGDRJWQ68G0MNDC75GDESXGMNX3PH94ZYVDJ9956NVS6P94PRWVEE956RWS6YXEP5ZD3J8QENWFNRVDUN642NGSS95XQ4"
+                await expect(createInvoice(-10, await fetchLNURLData(lnurl))).to.be.rejectedWith(Error)
+            })
+        }).timeout(10000)
+        it("Should create invoice if amount and LNURL are valid", async () => {
+            const lnurl = "LNURL1DP68GURN8GHJ7MRFVECXZ7FWD4JJ7TNHV4KXCTTTDEHHWM30D3H82UNVWQHKGDRJWQ68G0MNDC75GDESXGMNX3PH94ZYVDJ9956NVS6P94PRWVEE956RWS6YXEP5ZD3J8QENWFNRVDUN642NGSS95XQ4"
+            const lnurlData = await fetchLNURLData(lnurl)
+            const invoice = await createInvoice(1000, lnurlData)
+            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+            expect(invoice).not.to.be.undefined;
+            const {satoshi}= new Invoice({pr:invoice!})
+            expect(satoshi).to.deep.equal(1000)
+        }).timeout(10000);
     });
 });
+
