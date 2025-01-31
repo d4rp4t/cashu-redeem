@@ -20,9 +20,22 @@ type ChangeItem = {
     amount: number
 }
 
+type Settings = {
+    includeChange: boolean
+    previewMeltQuotes: boolean
+}
+
+type ToggleSwitchProps = {
+    label: string
+    isOn: boolean
+    onToggle: () => void
+}
+
 export {
     LNURLResponse,
     MeltQuoteAcceptanceProps,
     ChangeItem,
+    Settings,
+    ToggleSwitchProps,
 }
 

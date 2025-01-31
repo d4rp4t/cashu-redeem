@@ -1,5 +1,5 @@
 'use client'
-import {useCallback, useEffect, useRef, useState} from 'react'
+import React, {useCallback, useEffect, useRef, useState} from 'react'
 import {AnimatedBackground} from "@/components/AnimatedBackground"
 import {CashuMint, CashuWallet, getDecodedToken, MeltQuoteResponse, Token} from "@cashu/cashu-ts"
 import {LightningAddress} from "@getalby/lightning-tools"
@@ -11,18 +11,17 @@ import {getSatPerUnit, getSatValue} from "@/utils/cashuUtils"
 import toast from "react-hot-toast"
 import {mergeChange, removeUsedProofs, storeMint, storeProofs} from "@/utils/changeUtils"
 import {createInvoice, fetchLNURLData} from "@/utils/lightningUtils"
-import {Checkbox} from "@/components/ui/checkbox";
-import {Label} from "@/components/ui/label";
 import {CashChangeDisplay} from "@/components/TotalChange";
-import Image from "next/image"
 import {useSearchParams} from 'next/navigation'
 import {LNURLResponse} from "@/types";
-
+import {Settings} from "lucide-react";
+import {SettingsComponent} from "@/components/Settings";
+import {useSettings} from "@/hooks/useSettings";
+import Image from "next/image";
 const Button = dynamic(
     () => import('@getalby/bitcoin-connect-react').then((mod) => mod.Button),
     {ssr: false}
 );
-
 
 export default function CashuRedemption() {
     const [isLoading, setLoading] = useState<boolean>(false);
@@ -30,8 +29,9 @@ export default function CashuRedemption() {
     const [provider, setProvider] = useState<WebLNProvider>();
     const [lightningInput, setLightningInput] = useState<LightningAddress | LNURLResponse>();
     const [token, setToken] = useState<Token>();
-    const [includeChange, setIncludeChange] = useState<boolean>(false);
     const [showTotalChange, setShowTotalChange] = useState<boolean>(false);
+    const [showSettings, setShowSettings] = useState<boolean>(false);
+    const [settings, setSettings] = useSettings();
 
     const tokenRef = useRef<HTMLInputElement>(null);
     const lightningInputRef = useRef<HTMLInputElement>(null);
@@ -73,7 +73,7 @@ export default function CashuRedemption() {
                 throw new Error('Invalid token format')
             }
 
-            if (includeChange) {
+            if (settings.includeChange) {
                 const proofsWithChange = await mergeChange(decodedToken)
                 decodedToken.proofs = [...proofsWithChange]
             }
@@ -127,7 +127,7 @@ export default function CashuRedemption() {
         } finally {
             setLoading(false)
         }
-    }, [includeChange, provider, handleError])
+    }, [settings.includeChange, provider, handleError])
 
     const meltToken = useCallback(async () => {
         if (!meltQuote || !token) return
@@ -228,6 +228,11 @@ export default function CashuRedemption() {
         }
     }, [meltQuote, token, autopayParam, meltToken, handleError]);
 
+    useEffect(()=>{
+        if (!settings.previewMeltQuotes&&meltQuote) {
+            meltToken();
+        }
+    }, [meltQuote, meltToken, settings.previewMeltQuotes])
     useEffect(() => {
         return () => {
             toast.dismiss("redeem")
@@ -237,15 +242,26 @@ export default function CashuRedemption() {
     return (
         <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12 relative overflow-hidden">
             <AnimatedBackground/>
-            <nav className="absolute flex justify-between z-10 w-full py-5 px-5 top-0">
-                <Image src="/CoolCashu.png" width={50} height={50} alt={"Cool Cashu logo"}/>
-                <Button
-                    onConnected={async (p) => {
-                        setProvider(p)
-                        setLightningInput(undefined)
-                    }}
-                    onDisconnected={async () => setProvider(undefined)}
-                />
+            <nav className="absolute flex justify-between items-center z-10 w-full py-5 px-5 top-0">
+                <div className="flex-shrink-0">
+                    <Image src="/CoolCashu.png" width={50} height={50} alt="Cool Cashu logo"
+                           className="w-[50px] h-[50px]"/>
+                </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className="p-2 bg-white rounded-full shadow-md hover:bg-gray-100 transition-colors duration-200 flex-shrink-0"
+                        aria-label="Toggle settings"
+                    >
+                        <Settings className="w-5 h-5 text-violet-600"/>
+                    </button>
+                    <div className="flex-shrink-0">
+                        <Button
+                            onConnected={async (provider) => setProvider(provider)}
+                            onDisconnected={async () => setProvider(undefined)}
+                        />
+                    </div>
+                </div>
             </nav>
             <motion.div
                 initial={{opacity: 0, y: 20}}
@@ -293,24 +309,11 @@ export default function CashuRedemption() {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-                            <AnimatePresence>
-                                <motion.div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="include-change"
-                                        checked={includeChange}
-                                        onCheckedChange={(checked) => setIncludeChange(checked as boolean)}
-                                    />
-                                    <Label
-                                        htmlFor="include-change"
-                                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                                    >
-                                        Include Change
-                                    </Label>
-                                </motion.div>
-                            </AnimatePresence>
                             <button
                                 className="w-full px-4 py-2 text-lg font-medium text-white bg-violet-600 rounded-md hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-300 transition duration-150 ease-in-out transform hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-                                onClick={validateInput}
+                                onClick={async () => {
+                                     await validateInput();
+                                }}
                                 disabled={isLoading}
                             >
                                 {isLoading ? 'Processing...' : 'Redeem Token'}
@@ -332,7 +335,7 @@ export default function CashuRedemption() {
             </button>
 
             <AnimatePresence>
-                {meltQuote && (
+                {meltQuote && settings.previewMeltQuotes && (
                     <MeltQuoteAcceptance
                         meltQuote={meltQuote}
                         onAccept={() => meltToken()}
@@ -347,6 +350,13 @@ export default function CashuRedemption() {
                     <CashChangeDisplay onClose={() => {
                         setShowTotalChange(false)
                     }}/>
+                )}
+                {showSettings && (
+                    <SettingsComponent
+                        settings={settings}
+                        onSettingsChange={setSettings}
+                        onClose={() => setShowSettings(false)}
+                    />
                 )}
             </AnimatePresence>
         </div>
