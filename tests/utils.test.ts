@@ -109,33 +109,102 @@ describe("changeUtils", () => {
         })
     })
 
+
     describe("removeUsedProofs", () => {
+        const mockChange: Proof[] = [
+            {
+                id: "mint-123",
+                amount: 10000,
+                secret: "abcd1234efgh5678",
+                C: "sig1234567890abcdef"
+            },
+            {
+                id: "mint-456",
+                amount: 5000,
+                secret: "ijkl9012mnop3456",
+                C: "sig0987654321fedcba"
+            },
+            {
+                id: "mint-789",
+                amount: 2000,
+                secret: "qrst5678uvwx9012",
+                C: "sig5678901234ghijkl"
+            },
+            {
+                id: "mint-321",
+                amount: 15000,
+                secret: "mnop1234qrst5678",
+                C: "sigabcdef1234567890"
+            },
+            {
+                id: "mint-654",
+                amount: 7500,
+                secret: "uvwx9012abcd3456",
+                C: "sigfedcba0987654321"
+            }
+        ];
         beforeEach(() => {
-            localStorage.setItem("proofs", JSON.stringify(["proof1", "proof2", "proof3", "proof4", "proof5"]));
+            localStorage.setItem("proofs", JSON.stringify(mockChange));
         })
 
         it("should remove given proofs from localStorage", () => {
-            removeUsedProofs(['proof1', "proof3", "proof5"] as unknown as Proof[]);
+            removeUsedProofs([mockChange[0], mockChange[1]]);
             const proofs = getProofs();
-            expect(proofs).to.be.an('array').that.deep.equals(['proof2', 'proof4']);
+            expect(proofs).to.be.an('array').that.deep.equals(mockChange.slice(2, 5));
         })
 
         it("should remove nothing if provided an empty array", () => {
             removeUsedProofs([])
             const proofs = getProofs();
-            expect(proofs).to.be.an('array').that.deep.equals(["proof1", "proof2", "proof3", "proof4", "proof5"]);
+            expect(proofs).to.be.an('array').that.deep.equals(mockChange);
         })
 
         it("should do nothing with proofs different than these from localStorage", () => {
-            removeUsedProofs(['bread', "milk", "john pork"] as unknown as Proof[]);
+            const notUsedMockProofs: Proof[] = [
+                {
+                    id: "mint-987",
+                    amount: 12000,
+                    secret: "zyxw4321vuts8765",
+                    C: "sig1122334455667788"
+                },
+                {
+                    id: "mint-246",
+                    amount: 3000,
+                    secret: "asdf5678hjkl9012",
+                    C: "sig2233445566778899"
+                }
+            ];
+
+            removeUsedProofs(notUsedMockProofs);
             const proofs = getProofs();
-            expect(proofs).to.be.an('array').that.deep.equals(["proof1", "proof2", "proof3", "proof4", "proof5"])
+            expect(proofs).to.be.an('array').that.deep.equals(mockChange);
         })
 
         it('should work with proofs present and not present in localStorage ', () => {
-            removeUsedProofs(['bread', "milk", "john pork", "proof2", "proof3", "proof4"] as unknown as Proof[]);
+            const notUsedMockProofs: Proof[] = [
+                {
+                    id: "mint-987",
+                    amount: 12000,
+                    secret: "zyxw4321vuts8765",
+                    C: "sig1122334455667788"
+                },
+                {
+                    id: "mint-246",
+                    amount: 3000,
+                    secret: "asdf5678hjkl9012",
+                    C: "sig2233445566778899"
+                }
+            ];
+            removeUsedProofs([mockChange[0],mockChange[2], mockChange[3] , ...notUsedMockProofs]);
             const proofs = getProofs();
-            expect(proofs).to.be.an('array').that.deep.equals(["proof1", "proof5"])
+            console.log(proofs)
+            expect(proofs).to.be.an('array').that.deep.equals([mockChange[1], mockChange[4]])
+        })
+
+        it('should handle duplicates', ()=>{
+            removeUsedProofs([mockChange[0], mockChange[0], mockChange[0]]);
+            const proofs = getProofs();
+            expect(proofs).to.be.an('array').that.deep.equals(mockChange.slice(1, 5));
         })
     })
 

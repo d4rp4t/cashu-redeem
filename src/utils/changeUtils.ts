@@ -16,11 +16,11 @@ export function getProofs(): Proof[] {
 
 export function removeUsedProofs(usedProofs: Proof[]) {
     const localProofs = getProofs();
-    const updatedProofs = localProofs.filter((proof: Proof) => {
-        return !usedProofs.includes(proof);
-    })
+    const usedSecrets = new Set(usedProofs.map(proof => proof.secret));
+    const updatedProofs = localProofs.filter((proof: Proof) => !usedSecrets.has(proof.secret));
     localStorage.setItem("proofs", JSON.stringify(updatedProofs));
 }
+
 
 //Get proofs from localstorage for given mint
 export async function getChangeForMint(mintUrl: string) {
