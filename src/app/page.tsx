@@ -18,6 +18,7 @@ import {Settings} from "lucide-react";
 import {SettingsComponent} from "@/components/Settings";
 import {useSettings} from "@/hooks/useSettings";
 import Image from "next/image";
+import EmojiDecoder from "@/components/EmojiDecoder";
 const Button = dynamic(
     () => import('@getalby/bitcoin-connect-react').then((mod) => mod.Button),
     {ssr: false}
@@ -31,6 +32,8 @@ export default function CashuRedemption() {
     const [token, setToken] = useState<Token>();
     const [showTotalChange, setShowTotalChange] = useState<boolean>(false);
     const [showSettings, setShowSettings] = useState<boolean>(false);
+    const [showEmojiDecoder, setShowEmojiDecoder] = useState<boolean>(false);
+    const [cashuWallet, setCashuWallet] = useState<CashuWallet>();
     const [settings, setSettings] = useSettings();
 
     const tokenRef = useRef<HTMLInputElement>(null);
@@ -50,6 +53,7 @@ export default function CashuRedemption() {
         }
         setToken(undefined)
         setMeltQuote(undefined)
+        setCashuWallet(undefined)
         setLoading(false)
     }, [])
 
@@ -81,7 +85,7 @@ export default function CashuRedemption() {
             setToken(decodedToken)
             const mint = new CashuMint(decodedToken.mint)
             const wallet = new CashuWallet(mint, {unit: decodedToken.unit})
-
+            setCashuWallet(wallet);
             toast.loading("Calculating amount", {id: "redeem"})
             const amount = await getSatValue(wallet, decodedToken)
             let invoice: string | undefined;
@@ -130,16 +134,14 @@ export default function CashuRedemption() {
     }, [settings.includeChange, provider, handleError])
 
     const meltToken = useCallback(async () => {
-        if (!meltQuote || !token) return
+        if (!meltQuote || !token || !cashuWallet) return
 
         try {
             setLoading(true)
-            const mint = new CashuMint(token.mint)
-            const wallet = new CashuWallet(mint, {unit: token.unit})
             const amountToMelt = meltQuote.amount - meltQuote.fee_reserve;
 
             toast.loading("Processing redemption", {id: "redeem"})
-            const rate = await getSatPerUnit(wallet)
+            const rate = await getSatPerUnit(cashuWallet)
             if (!provider && !lightningInput) {
                 throw new Error('Please connect a wallet or enter a lightning address')
             }
@@ -149,20 +151,20 @@ export default function CashuRedemption() {
                 throw new Error("Failed to create final invoice")
             }
 
-            const newQuote = await wallet.createMeltQuote(secondInvoice)
-            const {keep, send} = await wallet.send(newQuote.amount + newQuote.fee_reserve, token.proofs)
+            const newQuote = await cashuWallet.createMeltQuote(secondInvoice)
+            const {keep, send} = await cashuWallet.send(newQuote.amount + newQuote.fee_reserve, token.proofs)
 
             toast.loading("Finalizing redemption", {id: "redeem"})
-            const {change} = await wallet.meltProofs(newQuote, send)
+            const {change} = await cashuWallet.meltProofs(newQuote, send)
 
+            //TODO: Swap proofs so prevent double spending the precious change
             const finalProofs = [...keep, ...change]
-
             //remove already melted proofs from localstorage
             removeUsedProofs(token.proofs)
             //store change
             storeProofs(finalProofs);
             //store mint of proofs
-            storeMint(mint.mintUrl)
+            storeMint(cashuWallet.mint.mintUrl)
             setLoading(false);
             toast.success("Redemption successful!", {id: "redeem"})
 
@@ -171,8 +173,9 @@ export default function CashuRedemption() {
         } catch (error) {
             handleError(error)
         }
-    }, [meltQuote, token, provider, lightningInput, handleError, resetForm])
+    }, [meltQuote, token, cashuWallet, provider, lightningInput, resetForm, handleError])
 
+    //Validating input and creating melt quote based on url params
     useEffect(() => {
         let isSubscribed = true
 
@@ -204,15 +207,14 @@ export default function CashuRedemption() {
         }
     }, [handleError, lightningParam, tokenParam, validateInput]);
 
+    //Melting via url params or just turning off melt quote preview - melt happens instantly if only meltQuote appears
     useEffect(() => {
         let isSubscribed = true
 
-        async function handleAutoMelt() {
-            if (!!autopayParam && meltQuote && token) {
+        async function handleMelt() {
+            if (((!settings.previewMeltQuotes && meltQuote) || (!!autopayParam && meltQuote && token)) && isSubscribed) {
                 try {
-                    if (isSubscribed) {
-                        await meltToken()
-                    }
+                    await meltToken()
                 } catch (error) {
                     if (isSubscribed) {
                         handleError(error)
@@ -221,18 +223,14 @@ export default function CashuRedemption() {
             }
         }
 
-        handleAutoMelt()
+        handleMelt()
 
         return () => {
             isSubscribed = false
         }
-    }, [meltQuote, token, autopayParam, meltToken, handleError]);
+    }, [meltQuote, token, autopayParam, meltToken, handleError, settings.previewMeltQuotes]);
 
-    useEffect(()=>{
-        if (!settings.previewMeltQuotes&&meltQuote) {
-            meltToken();
-        }
-    }, [meltQuote, meltToken, settings.previewMeltQuotes])
+    //remove toast
     useEffect(() => {
         return () => {
             toast.dismiss("redeem")
@@ -329,10 +327,19 @@ export default function CashuRedemption() {
                                     className="text-violet-600 hover:underline">cashu.space</a></p>
             </footer>
 
-            <button
-                className={"px-4 py-2 text-md w-[200px] absolute bottom-5 right-5 font-medium text-white bg-violet-600 rounded-md hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-300 transition duration-150 ease-in-out transform hover:scale-105"}
-                disabled={false} onClick={() => setShowTotalChange(true)}>View Stored Change
-            </button>
+            <div className={"text-md absolute bottom-5 right-5 font-medium flex flex-col gap-3"}>
+                <button
+                    className={"w-[200px] px-4 py-2  text-white bg-violet-600 rounded-md hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-300 transition duration-150 ease-in-out transform hover:scale-105"}
+                    disabled={false} onClick={() => setShowEmojiDecoder(true)}>⚡ Decode Emoji 🥜
+                </button>
+                <button
+                    className={"w-[200px] px-4 py-2  text-white bg-violet-600 rounded-md hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-300 transition duration-150 ease-in-out transform hover:scale-105"}
+                    disabled={false} onClick={() => setShowTotalChange(true)}>View Stored Change
+                </button>
+            </div>
+
+
+
 
             <AnimatePresence>
                 {meltQuote && settings.previewMeltQuotes && (
@@ -351,6 +358,7 @@ export default function CashuRedemption() {
                         setShowTotalChange(false)
                     }}/>
                 )}
+                {showEmojiDecoder&&(<EmojiDecoder onClose={() => {setShowEmojiDecoder(false)}} tokenInputRef={tokenRef} handleError={handleError} />)}
                 {showSettings && (
                     <SettingsComponent
                         settings={settings}
