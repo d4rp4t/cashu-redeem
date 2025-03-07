@@ -13,7 +13,7 @@ interface EmojiDecoderProps {
     handleError: (e: unknown) => void
 }
 
-const dancingScript = Dancing_Script()
+const dancingScript = Dancing_Script( {subsets:["latin"]})
 export default function EmojiDecoder({ tokenInputRef, onClose, handleError }: EmojiDecoderProps) {
     const encodedText = useRef<HTMLInputElement>(null)
 
