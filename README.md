@@ -7,6 +7,7 @@ A simple web application for redeeming Cashu Ecash tokens directly to your Light
 - Support for both Lightning Address and Bitcoin Connect.
 - Token validation and error handling.
 - Easy-to-use interface for token redemption.
+- ✨ Emoji support ✨ 
 
 ## Installation
 
