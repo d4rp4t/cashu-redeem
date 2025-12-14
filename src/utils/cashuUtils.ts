@@ -1,6 +1,5 @@
 
-import {CashuWallet, Token,} from "@cashu/cashu-ts";
-import {sumProofs} from "@cashu/cashu-ts/dist/lib/es6/utils";
+import {CashuWallet, Proof, Token,} from "@cashu/cashu-ts";
 import { Invoice } from "@getalby/lightning-tools"
 
 //estimate value of token
@@ -17,5 +16,9 @@ async function getSatPerUnit(wallet:CashuWallet):Promise<number> {
     return Math.floor(rate)
 }
 
+function sumProofs(proofs: Proof[]): number {
+    return proofs.reduce((sum, proof) => sum + proof.amount, 0)
+}
 
-export {  getSatValue, getSatPerUnit };
+
+export {  getSatValue, getSatPerUnit, sumProofs };
