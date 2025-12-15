@@ -30,6 +30,13 @@ export default [
       sourceType: "module",
     },
 
+    ignorePatterns: [
+      "node_modules/",
+      ".next/",
+      ".idea/",
+      "*.config.mjs"
+    ],
+
     extends: [
       "eslint:recommended",
       "plugin:@typescript-eslint/recommended",

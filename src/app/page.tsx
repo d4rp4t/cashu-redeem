@@ -166,7 +166,7 @@ export default function CashuRedemption() {
 		} finally {
 			setLoading(false);
 		}
-	}, [settings.includeChange, provider, handleError]);
+	}, [settings.includeChange, token, provider, handleError]);
 
 	const meltToken = useCallback(async () => {
 		if (!meltQuote || !token || !cashuWallet) {
