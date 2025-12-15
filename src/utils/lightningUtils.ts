@@ -5,7 +5,7 @@ import { bech32 } from "bech32";
 import { LNURLResponse } from "@/types";
 
 const URL_REGEX =
-	/((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[\w]*))?)/;
+	/((([A-Za-z]{3,9}:\/\/)?(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+|(?:www\.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)(\/[^?#]*(\?[^#]*)?(#.*)?)?)/;
 
 export const isUrl = (url: string | null): url is string => {
 	if (!url) return false;
@@ -39,7 +39,7 @@ async function createInvoice(
 		"minSendable" in source &&
 		"metadata" in source
 	) {
-		return await handleLNURL(source, amount);
+		return handleLNURL(source, amount);
 	}
 }
 
