@@ -11,38 +11,38 @@ const VARIATION_SELECTOR_END = 0xfe0f;
 const VARIATION_SELECTOR_SUPPLEMENT_START = 0xe0100;
 const VARIATION_SELECTOR_SUPPLEMENT_END = 0xe01ef;
 
-
-
 export function fromVariationSelector(codePoint: number): number | null {
-    if (codePoint >= VARIATION_SELECTOR_START && codePoint <= VARIATION_SELECTOR_END) {
-        return codePoint - VARIATION_SELECTOR_START
-    } else if (codePoint >= VARIATION_SELECTOR_SUPPLEMENT_START && codePoint <= VARIATION_SELECTOR_SUPPLEMENT_END) {
-        return codePoint - VARIATION_SELECTOR_SUPPLEMENT_START + 16
-    } else {
-        return null
-    }
+	if (codePoint >= VARIATION_SELECTOR_START && codePoint <= VARIATION_SELECTOR_END) {
+		return codePoint - VARIATION_SELECTOR_START;
+	} else if (
+		codePoint >= VARIATION_SELECTOR_SUPPLEMENT_START &&
+		codePoint <= VARIATION_SELECTOR_SUPPLEMENT_END
+	) {
+		return codePoint - VARIATION_SELECTOR_SUPPLEMENT_START + 16;
+	} else {
+		return null;
+	}
 }
 
 export function decode(text: string): string {
-    const decoded = []
-    const chars = Array.from(text)
+	const decoded = [];
+	const chars = Array.from(text);
 
-    for (const char of chars) {
-        const byte = fromVariationSelector(char.codePointAt(0)!)
+	for (const char of chars) {
+		const byte = fromVariationSelector(char.codePointAt(0)!);
 
-        if (byte === null && decoded.length > 0) {
-            break
-        } else if (byte === null) {
-            continue
-        }
+		if (byte === null && decoded.length > 0) {
+			break;
+		} else if (byte === null) {
+			continue;
+		}
 
-        decoded.push(byte)
-    }
+		decoded.push(byte);
+	}
 
-    const decodedArray = new Uint8Array(decoded)
-    return new TextDecoder().decode(decodedArray)
+	const decodedArray = new Uint8Array(decoded);
+	return new TextDecoder().decode(decodedArray);
 }
-
 
 //i don't need it, for now
 // export function toVariationSelector(byte: number): string | null {
@@ -65,4 +65,3 @@ export function decode(text: string): string {
 //
 //     return encoded
 // }
-
